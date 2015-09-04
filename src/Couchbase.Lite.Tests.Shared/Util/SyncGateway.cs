@@ -236,6 +236,35 @@ namespace Couchbase.Lite.Tests
             return docList;
         }
 
+        public void DeleteDocument(string docId, string revId)
+        {
+            var remoteUrl = new Uri(string.Format("{0}/{1}?rev={2}", _remoteUri, docId, revId));
+            Log.D(Tag, "Send http request to " + remoteUrl);
+            try
+            {
+                HttpResponseMessage response;
+                //var request = new HttpRequestMessage();
+                //request.Headers.Add("Accept", "*/*");
+                //request.Method = HttpMethod.Delete;
+
+                var deleteTask = _httpClient.DeleteAsync(remoteUrl);
+                response = deleteTask.Result;
+                var statusLine = response.StatusCode;
+                Log.D(Tag, "Got response: " + statusLine);
+                Assert.IsTrue(statusLine == HttpStatusCode.OK);
+            }
+            catch (ProtocolViolationException e)
+            {
+                Assert.IsNull(e, "Got ClientProtocolException: " + e.Message);
+            }
+            catch (IOException e)
+            {
+                Assert.IsNull(e, "Got IOException: " + e.Message);
+            }
+
+            WorkaroundSyncGatewayRaceCondition();
+        }
+
         public void AddDocument(string docId, string attachmentName)
         {
             string docJson = CreateDocumentJson(attachmentName);
@@ -247,8 +276,8 @@ namespace Couchbase.Lite.Tests
             try
             {
                 HttpResponseMessage response;
-                var request = new HttpRequestMessage();
-                request.Headers.Add("Accept", "*/*");
+                //var request = new HttpRequestMessage();
+                //request.Headers.Add("Accept", "*/*");
 
                 var postTask = _httpClient.PutAsync(pathToDoc1.AbsoluteUri, new StringContent(docJson, Encoding.UTF8, "application/json"));
                 response = postTask.Result;
@@ -283,7 +312,7 @@ namespace Couchbase.Lite.Tests
             }
             else
             {
-                return @"{""foo"":1,""bar"":false}";
+                return @"{""foo"":1,""bar"":false,""type"":""jim""}";
             }
         }
 

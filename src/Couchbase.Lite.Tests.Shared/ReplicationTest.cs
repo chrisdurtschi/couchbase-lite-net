@@ -773,6 +773,45 @@ namespace Couchbase.Lite
             }
         }
 
+        [Test] // Issue #495
+        public void TestActivePullerWithLiveQuery()
+        {
+            var start = DateTime.Now;
+            var currentDocId = Misc.CreateGUID();
+            var mre = new ManualResetEventSlim();
+            using (var remoteDb = _sg.CreateDatabase(TempDbName())) {
+                Task.Factory.StartNew(() =>
+                {
+                    do {
+                        remoteDb.AddDocument(currentDocId, null);
+                        Thread.Sleep(5000);
+                        remoteDb.DeleteDocument(currentDocId, "1-f1de6d3d488bbffcb7c65382b46d93cb");
+                        currentDocId = Misc.CreateGUID();
+                    } while((DateTime.Now - start).TotalSeconds < 60);
+                    mre.Set();
+                    mre.Dispose();
+                }, TaskCreationOptions.LongRunning);
+
+                var pull = database.CreatePullReplication(remoteDb.RemoteUri);
+                pull.Continuous = true;
+                var view = database.GetView("issue495");
+                view.SetMap((doc, emit) =>
+                {
+                    object key;
+                    var hasType = doc.TryGetValue("type", out key);
+                    if (hasType && key.Equals("jim")) {
+                        emit(doc["_id"], null);
+                    }
+                }, "1");
+
+                var query = view.CreateQuery().ToLiveQuery();
+                query.Start();
+
+                pull.Start();
+                mre.Wait();
+            }
+        }
+
         /// <exception cref="System.Exception"></exception>
         [Test]
         public void TestPullerWithLiveQuery()
