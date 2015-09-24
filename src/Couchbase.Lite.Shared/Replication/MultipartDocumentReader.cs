@@ -77,9 +77,51 @@ namespace Couchbase.Lite.Support
             this.database = database;
         }
 
+        public static IDictionary<string, object> ReadToDatabase(IEnumerable<byte> data, IDictionary<string, string> headers, 
+            Database db)
+        {
+            var realized = data.ToArray();
+            if (realized.Length == 0) {
+                throw new CouchbaseLiteException(StatusCode.BadJson);
+            }
+
+            var reader = new MultipartDocumentReader(db);
+            reader.SetHeaders(headers);
+            reader.AppendData(data);
+            reader.Finish();
+
+            return reader.document;
+        }
+
         public IDictionary<String, Object> GetDocumentProperties()
         {
             return document;
+        }
+
+        public void SetHeaders(IDictionary<string, string> headers)
+        {
+            var contentType = headers.Get("Content-Type");
+            if (contentType != null && contentType.StartsWith("multipart/")) {
+                // Multipart, so initialize the parser:
+                Log.V(TAG, "    Has attachments, {0}", contentType);
+                try {
+                    multipartReader = new MultipartReader(contentType, this);
+                } catch (ArgumentException e) {
+                    throw new CouchbaseLiteException(e, StatusCode.NotAcceptable);
+                }
+
+                attachmentsByName = new Dictionary<string, BlobStoreWriter>();
+                attachmentsBySHA1Digest = new Dictionary<string, BlobStoreWriter>();
+                return;
+            } else if (contentType == null || contentType.StartsWith("application/json") ||
+                      contentType.StartsWith("text/plain")) {
+                // No multipart, so no attachments. Body is pure JSON. (We allow text/plain because CouchDB
+                // sends JSON responses using the wrong content-type.)
+                StartJsonBuffer(headers);
+                return;
+            }
+
+            throw new CouchbaseLiteException(StatusCode.NotAcceptable); 
         }
 
         public void ParseJsonBuffer()
@@ -94,13 +136,12 @@ namespace Couchbase.Lite.Support
                         throw new CouchbaseLiteException("Received corrupt gzip encoded JSON part", StatusCode.UpStreamError);
                     }
                 }
-                document = Manager.GetObjectMapper().ReadValue<IDictionary<String, Object>>(jsonBuffer.ToArray());
+                document = Manager.GetObjectMapper().ReadValue<IDictionary<String, Object>>(json.ToArray());
             } catch (IOException e) {
                 throw new InvalidOperationException("Failed to parse json buffer", e);
             } catch(CouchbaseLiteException e) {
                 throw new InvalidOperationException("Failed to parse json buffer", e);
             }
-            jsonBuffer = null;
         }
 
         public void SetContentType(String contentType)
@@ -256,9 +297,7 @@ namespace Couchbase.Lite.Support
         public void StartedPart(IDictionary<String, String> headers)
         {
             if (document == null) {
-                jsonBuffer = new List<Byte>(1024);
-                var contentEncoding = headers.Get("Content-Encoding");
-                _jsonCompressed = contentEncoding != null && contentEncoding.Contains("gzip");
+                StartJsonBuffer(headers);
             } else {
                 Log.V(TAG, "    Starting attachment #{0}...", attachmentsBySHA1Digest.Count + 1);
                 curAttachment = database.AttachmentWriter;
@@ -304,12 +343,9 @@ namespace Couchbase.Lite.Support
 
         public void AppendToPart(IEnumerable<Byte> data)
         {
-            if (jsonBuffer != null)
-            {
+            if (jsonBuffer != null) {
                 jsonBuffer.AddRange(data);
-            }
-            else
-            {
+            } else if (curAttachment != null) {
                 curAttachment.AppendData(data.ToArray());
             }
         }
@@ -327,6 +363,13 @@ namespace Couchbase.Lite.Support
                 attachmentsBySHA1Digest.Put(sha1String, curAttachment);
                 curAttachment = null;
             }
+        }
+
+        private void StartJsonBuffer(IDictionary<string, string> headers)
+        {
+            jsonBuffer = new List<Byte>(1024);
+            var contentEncoding = headers.Get("Content-Encoding");
+            _jsonCompressed = contentEncoding != null && contentEncoding.Contains("gzip");
         }
     }
 }

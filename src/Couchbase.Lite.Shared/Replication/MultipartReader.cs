@@ -231,16 +231,16 @@ namespace Couchbase.Lite.Support
                             var start = Math.Max(0, bufLen - data.Length - boundary.Length);
                             var r = SearchFor(boundary, start);
 
-                            if (r.GetLength() > 0)
+                            if (r.Length > 0)
                             {
                                 if (state == MultipartReader.MultipartReaderState.InBody)
                                 {
-                                    var dataToAppend = new byte[r.GetLocation()];
+                                    var dataToAppend = new byte[r.Location];
                                     Array.Copy(buffer.ToArray(), 0, dataToAppend, 0, dataToAppend.Length);
                                     readerDelegate.AppendToPart(dataToAppend);
                                     readerDelegate.FinishedPart();
                                 }
-                                DeleteUpThrough(r.GetLocation() + r.GetLength());
+                                DeleteUpThrough(r.Location + r.Length);
                                 nextState = MultipartReader.MultipartReaderState.InHeaders;
                             }
                             else
@@ -261,12 +261,12 @@ namespace Couchbase.Lite.Support
                             }
                             // Otherwise look for two CRLFs that delimit the end of the headers:
                             var r = SearchFor(kCRLFCRLF, 0);
-                            if (r.GetLength() > 0)
+                            if (r.Length > 0)
                             {
-                                var headersBytes = new Couchbase.Lite.Util.ArraySegment<Byte>(buffer.ToArray(), 0, r.GetLocation()); // <-- better?
+                                var headersBytes = new Couchbase.Lite.Util.ArraySegment<Byte>(buffer.ToArray(), 0, r.Location); // <-- better?
                                 var headersString = Encoding.UTF8.GetString(headersBytes.ToArray());
                                 ParseHeaders(headersString);
-                                DeleteUpThrough(r.GetLocation() + r.GetLength());
+                                DeleteUpThrough(r.Location + r.Length);
                                 readerDelegate.StartedPart(headers);
                                 nextState = MultipartReader.MultipartReaderState.InBody;
                             }
@@ -294,35 +294,34 @@ namespace Couchbase.Lite.Support
 
         private void ParseContentType()
         {
+            // ContentType will look like "multipart/foo; boundary=bar"
+            // But there may be other ';'-separated params, and the boundary string may be quoted.
+            // This is really not a full MIME type parser, but should work well enough for our needs.
             var tokenizer = contentType.Split(';');
             bool first = true;
-            foreach (var token in tokenizer)
-            {
+            foreach (var token in tokenizer) {
                 string param = token.Trim();
-                if (first)
-                {
-                    if (!param.StartsWith("multipart/", StringComparison.InvariantCultureIgnoreCase))
-                    {
+                if (first) {
+                    if (!param.StartsWith("multipart/", StringComparison.InvariantCultureIgnoreCase)) {
                         throw new ArgumentException(contentType + " does not start with multipart/");
                     }
+
                     first = false;
-                }
-                else
-                {
-                    if (param.StartsWith("boundary=", StringComparison.InvariantCultureIgnoreCase))
-                    {
+                }  else {
+                    if (param.StartsWith("boundary=", StringComparison.InvariantCultureIgnoreCase)) {
                         var tempBoundary = param.Substring(9);
-                        if (tempBoundary.StartsWith ("\"", StringComparison.InvariantCultureIgnoreCase)) 
-                        {
-                            if (tempBoundary.Length < 2 || !tempBoundary.EndsWith ("\"", StringComparison.InvariantCultureIgnoreCase)) {
-                                throw new ArgumentException (contentType + " is not valid");
+                        if (tempBoundary.StartsWith("\"", StringComparison.InvariantCultureIgnoreCase)) {
+                            if (tempBoundary.Length < 2 || !tempBoundary.EndsWith("\"", StringComparison.InvariantCultureIgnoreCase)) {
+                                throw new ArgumentException(contentType + " is not valid");
                             }
+
                             tempBoundary = tempBoundary.Substring(1, tempBoundary.Length - 2);
                         }
-                        if (tempBoundary.Length < 1)
-                        {
+
+                        if (tempBoundary.Length < 1) {
                             throw new ArgumentException(contentType + " has zero-length boundary");
                         }
+
                         tempBoundary = string.Format("\r\n--{0}", tempBoundary);
                         boundary = Encoding.UTF8.GetBytes(tempBoundary);
                         break;

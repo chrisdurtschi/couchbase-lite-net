@@ -308,8 +308,7 @@ namespace Couchbase.Lite
             StartTime = DateTime.UtcNow.ToMillisecondsSinceEpoch ();
         }
 
-        #endregion
-
+                          #endregion
     
         #region Public Methods
 
@@ -656,6 +655,17 @@ namespace Couchbase.Lite
     #endregion
 
         #region Internal Methods
+
+        // This is ONLY FOR TESTS
+        internal BlobStoreWriter AttachmentWriterForAttachment(IDictionary<string, object> attachment)
+        {
+            var digest = attachment.GetCast<string>("digest");
+            if (digest == null) {
+                return null;
+            }
+
+            return _pendingAttachmentsByDigest.Get(digest);
+        }
 
         internal RevisionList UnpushedRevisionsSince(string sequence, FilterDelegate filter, IDictionary<string, object> filterParams)
         {
