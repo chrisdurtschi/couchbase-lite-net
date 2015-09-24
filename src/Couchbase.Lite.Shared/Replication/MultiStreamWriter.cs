@@ -170,8 +170,12 @@ namespace Couchbase.Lite.Support
             }
 
             var tcs = new TaskCompletionSource<bool>();
-            ThreadPool.RegisterWaitForSingleObject(_mre.WaitHandle, (o, timeout) => tcs.SetResult(!timeout),
-                null, TimeSpan.FromSeconds(30), true);
+            try {
+                ThreadPool.RegisterWaitForSingleObject(_mre.WaitHandle, (o, timeout) => tcs.SetResult(!timeout),
+                    null, TimeSpan.FromSeconds(30), true);
+            } catch(ObjectDisposedException) {
+                tcs.SetResult(false);
+            }
 
             return tcs.Task;
         }

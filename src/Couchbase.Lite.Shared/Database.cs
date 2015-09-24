@@ -1079,40 +1079,6 @@ namespace Couchbase.Lite
             return Storage.GetDocument(docId, revId, withBody, status);
         }
 
-        internal MultipartWriter MultipartWriterForRev(RevisionInternal rev, string contentType)
-        {
-            var writer = new MultipartWriter(contentType, null);
-            writer.SetNextPartHeaders(new Dictionary<string, string> { { "Content-Type", "application/json" } });
-            writer.AddData(rev.GetBody().AsJson());
-            var attachments = rev.GetAttachments();
-            if (attachments == null) {
-                return writer;
-            }
-
-            foreach (var entry in attachments) {
-                var attachment = entry.Value.AsDictionary<string, object>();
-                if (attachment != null && attachment.GetCast<bool>("follows", false)) {
-                    var disposition = String.Format("attachment; filename={0}", Quote(entry.Key));
-                    writer.SetNextPartHeaders(new Dictionary<string, string> { { "Content-Disposition", disposition } });
-
-                    Status status = new Status();
-                    var attachObj = AttachmentForDict(attachment, entry.Key, status);
-                    if (attachObj == null) {
-                        return null;
-                    }
-
-                    var fileURL = attachObj.ContentUrl;
-                    if (fileURL != null) {
-                        writer.AddFileUrl(fileURL);
-                    } else {
-                        writer.AddStream(attachObj.ContentStream);
-                    }
-                }
-            }
-
-            return writer;
-        }
-
         internal static IDictionary<string, object> MakeRevisionHistoryDict(IList<RevisionInternal> history)
         {
             if (history == null)
@@ -1451,9 +1417,11 @@ namespace Couchbase.Lite
                     //Put data inline:
                     expanded.Remove("follows");
                     Status status = new Status();
-                    var attachObj = AttachmentForDict(attachment, name, status);
-                    if(attachObj == null) {
-                        Log.W(TAG, "Can't get attachment '{0}' of {1} (status {2})", name, rev, status);
+                    var attachObj = default(AttachmentInternal);
+                    try {
+                        attachObj = AttachmentForDict(attachment, name);
+                    } catch(CouchbaseLiteException e) {
+                        Log.W(TAG, "Can't get attachment '{0}' of {1} (status {2})", name, rev, e.CBLStatus);
                         outStatus.Code = status.Code;
                         return attachment;
                     }
@@ -1474,26 +1442,13 @@ namespace Couchbase.Lite
             return outStatus.Code == StatusCode.Ok;
         }
 
-        internal AttachmentInternal AttachmentForDict(IDictionary<string, object> info, string filename, Status status)
+        internal AttachmentInternal AttachmentForDict(IDictionary<string, object> info, string filename)
         {
             if (info == null) {
-                if (status != null) {
-                    status.Code = StatusCode.NotFound;
-                }
-
-                return null;
+                throw new CouchbaseLiteException(StatusCode.NotFound);
             }
 
-            AttachmentInternal attachment;
-            try {
-                attachment = new AttachmentInternal(filename, info);
-            } catch(CouchbaseLiteException e) {
-                if (status != null) {
-                    status.Code = e.CBLStatus.Code;
-                }
-                return null;
-            }
-
+            AttachmentInternal attachment = new AttachmentInternal(filename, info);
             attachment.Database = this;
             return attachment;
         }
@@ -1806,6 +1761,10 @@ namespace Couchbase.Lite
 
         internal AttachmentInternal GetAttachmentForRevision(RevisionInternal rev, string name, Status status = null)
         {
+            if (status == null) {
+                status = new Status();
+            }
+
             Debug.Assert(name != null);
             var attachments = rev.GetAttachments();
             if (attachments == null) {
@@ -1826,7 +1785,12 @@ namespace Couchbase.Lite
                 }
             }
 
-            return AttachmentForDict(attachments.Get(name).AsDictionary<string, object>(), name, status);
+            try {
+                return AttachmentForDict(attachments.Get(name).AsDictionary<string, object>(), name);
+            } catch(CouchbaseLiteException e) {
+                status.Code = e.Code;
+                return null;
+            }
         }
             
         internal RevisionInternal RevisionByLoadingBody(RevisionInternal rev, Status outStatus)

@@ -52,6 +52,7 @@ using System.Net.Http.Headers;
 
 using Sharpen;
 using System.Threading.Tasks;
+using ICSharpCode.SharpZipLib.GZip;
 
 namespace Couchbase.Lite
 {
@@ -72,9 +73,11 @@ namespace Couchbase.Lite
         {
             var array = data.ToArray();
 
-            using (var ms = new MemoryStream())
-            using (var gs = new GZipStream(ms, CompressionMode.Compress, false)) {
-                gs.Write(array, 0, array.Length);
+            using (var ms = new MemoryStream()) {
+                using (var gs = new GZipStream(ms, CompressionMode.Compress, false)) {
+                    gs.Write(array, 0, array.Length);
+                }
+
                 return ms.ToArray();
             }
         }

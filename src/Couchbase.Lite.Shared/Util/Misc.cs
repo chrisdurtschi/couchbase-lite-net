@@ -64,7 +64,17 @@ namespace Couchbase.Lite
 
     internal static class Misc
     {
-        
+        public static string QuoteString(string param)
+        {
+            var sb = new StringBuilder(param);
+            sb.Replace("\\", "\\\\");
+            sb.Replace("\"", "\\\"");
+            sb.Insert(0, '"');
+            sb.Append('"');
+
+            return sb.ToString();
+        }
+
         public static string CreateGUID()
         {
             return Guid.NewGuid().ToString().ToLower();

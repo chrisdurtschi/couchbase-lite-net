@@ -91,6 +91,9 @@ namespace Couchbase.Lite.Replicator
                 return tcs.Task;
             }
 
+            request.Headers.Add("Content-Type", "application/json");
+            request.Headers.Add("X-Accept-Part-Encoding", "gzip");
+
             Log.D(Tag + ".ExecuteRequest", "Sending request: {0}", request);
             var requestTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_tokenSource.Token);
             var retVal = httpClient.SendAsync(request, requestTokenSource.Token);
