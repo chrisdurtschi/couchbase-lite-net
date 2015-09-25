@@ -209,15 +209,15 @@ namespace Couchbase.Lite
         public void TestTypes()
         {
             var reader = new MultipartReader("multipart/related; boundary=\"BOUNDARY\"", null);
-            Assert.AreEqual(Encoding.UTF8.GetBytes("\r\n--BOUNDARY"), reader.GetBoundary());
+            Assert.AreEqual(Encoding.UTF8.GetBytes("\r\n--BOUNDARY"), reader.Boundary);
 
             reader = new MultipartReader("multipart/related; boundary=BOUNDARY", null);
-            Assert.AreEqual(Encoding.UTF8.GetBytes("\r\n--BOUNDARY"), reader.GetBoundary());
+            Assert.AreEqual(Encoding.UTF8.GetBytes("\r\n--BOUNDARY"), reader.Boundary);
 
             Assert.Throws<ArgumentException>(() => reader = new MultipartReader("multipart/related; boundary=\"BOUNDARY", null));
 
             reader = new MultipartReader("multipart/related; boundary=X", null);
-            Assert.AreEqual(Encoding.UTF8.GetBytes("\r\n--X"), reader.GetBoundary());
+            Assert.AreEqual(Encoding.UTF8.GetBytes("\r\n--X"), reader.Boundary);
         }
 
         [Test]
@@ -241,7 +241,7 @@ namespace Couchbase.Lite
                 Log.D(TAG, "--- chunkSize = {0}", chunkSize);
                 Reset();
                 var reader = new MultipartReader("multipart/related; boundary=\"BOUNDARY\"", this);
-                Assert.IsFalse(reader.Finished());
+                Assert.IsFalse(reader.Finished);
 
                 Range r = new Range(0, 0);
                 do {
@@ -249,11 +249,29 @@ namespace Couchbase.Lite
                     r.Length = Math.Min(chunkSize, mime.Length - r.Location);
                     reader.AppendData(mime.SubList(r.Location, r.Length));
                     r.Location += chunkSize;
-                } while(!reader.Finished());
+                } while(!reader.Finished);
             }
 
             Assert.AreEqual(expectedHeaders, _headerList);
             Assert.AreEqual(expectedParts, _partList);
+        }
+
+        [Test]
+        public void TestGZipped()
+        {
+            var mime = GetType().GetResourceAsStream("MultipartStars.mime").ReadAllBytes();
+            var reader = new MultipartReader("multipart/related; boundary=\"BOUNDARY\"", this);
+            reader.AppendData(mime);
+            Assert.IsTrue(reader.Finished);
+
+            AssertDictionariesAreEqual(new Dictionary<string, string> {
+                { "Content-Encoding", "gzip" },
+                { "Content-Length", "24" },
+                { "Content-Type", "star-bellies" }
+            }, _headerList[0]);
+
+            var stars = _partList[0].Decompress();
+            Assert.AreEqual(Enumerable.Repeat((byte)'*', 100), stars);
         }
 
         private void Reset()

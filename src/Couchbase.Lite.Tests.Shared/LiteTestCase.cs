@@ -272,13 +272,18 @@ namespace Couchbase.Lite
 
         protected void AssertDictionariesAreEqual(IDictionary<string, object> first, IDictionary<string, object> second)
         {
+            AssertDictionariesAreEqual<string, object>(first, second);
+        }
+
+        protected void AssertDictionariesAreEqual<K, V>(IDictionary<K, V> first, IDictionary<K, V> second)
+        {
             //I'm tired of NUnit misunderstanding that objects are dictionaries and trying to compare them as collections...
             Assert.IsTrue(first.Keys.Count == second.Keys.Count);
             foreach (var key in first.Keys) {
                 var firstObj = first[key];
                 var secondObj = second[key];
-                var firstDic = firstObj.AsDictionary<string, object>();
-                var secondDic = secondObj.AsDictionary<string, object>();
+                var firstDic = firstObj.AsDictionary<K, V>();
+                var secondDic = secondObj.AsDictionary<K, V>();
                 if (firstDic != null && secondDic != null) {
                     AssertDictionariesAreEqual(firstDic, secondDic);
                 } else {

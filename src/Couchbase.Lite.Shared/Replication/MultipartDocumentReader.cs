@@ -177,10 +177,10 @@ namespace Couchbase.Lite.Support
         {
             if (multipartReader != null)
             {
-                if (!multipartReader.Finished())
-                {
+                if (!multipartReader.Finished) {
                     throw new InvalidOperationException("received incomplete MIME multipart response");
                 }
+
                 RegisterAttachments();
             }
             else
