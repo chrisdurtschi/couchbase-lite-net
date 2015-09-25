@@ -55,7 +55,7 @@ namespace Couchbase.Lite.Support
         private int _nextInputIndex;
         private Stream _currentInput;
         private Stream _output;
-        private ManualResetEventSlim _mre;
+        private SemaphoreSlim _semaphore = new SemaphoreSlim(0, 1);
         private bool _isDisposed;
         private readonly int _bufferSize;
 
@@ -80,7 +80,7 @@ namespace Couchbase.Lite.Support
         /// <value><c>true</c> if this instance is open; otherwise, <c>false</c>.</value>
         public bool IsOpen { 
             get {
-                return _mre != null && !_mre.IsSet && !_isDisposed;
+                return _semaphore != null && _semaphore.CurrentCount != 0 && !_isDisposed;
             }
         }
 
@@ -113,6 +113,10 @@ namespace Couchbase.Lite.Support
         /// <param name="stream">The stream to be processed.</param>
         public void AddStream(Stream stream)
         {
+            if (_isDisposed) {
+                throw new ObjectDisposedException("MultiStreamWriter");
+            }
+
             Log.D(TAG, "Adding stream of unknown length: {0}", stream);
             _inputs.Add(stream);
             Length = -1; // length is now unknown
@@ -174,20 +178,8 @@ namespace Couchbase.Lite.Support
             Debug.Assert(_output == null, "Already open");
             _output = output;
             Opened();
-
-            if (_mre == null) {
-                _mre = new ManualResetEventSlim();
-            }
-
-            var tcs = new TaskCompletionSource<bool>();
-            try {
-                ThreadPool.RegisterWaitForSingleObject(_mre.WaitHandle, (o, timeout) => tcs.SetResult(!timeout),
-                    null, TimeSpan.FromSeconds(30), true);
-            } catch(ObjectDisposedException) {
-                tcs.SetResult(false);
-            }
-
-            return tcs.Task;
+                
+            return _semaphore == null ? Task.FromResult(false) : _semaphore.WaitAsync(TimeSpan.FromSeconds(10));
         }
 
         /// <summary>
@@ -196,10 +188,9 @@ namespace Couchbase.Lite.Support
         public void Close()
         {
             if (_isDisposed) {
-                return;
+                throw new ObjectDisposedException("MultiStreamWriter");
             }
 
-            _isDisposed = true;
             Log.D(TAG, "Closed");
             if (_output != null) {
                 _output.Close();
@@ -227,9 +218,12 @@ namespace Couchbase.Lite.Support
         /// <returns>All the accumulated data</returns>
         public IEnumerable<byte> AllOutput()
         {
-            _nextInputIndex = 0;
+            if (_isDisposed) {
+                throw new ObjectDisposedException("MultiStreamWriter");
+            }
+                
             using (var ms = new MemoryStream()) {
-                if (!WriteAsync(ms).Wait(TimeSpan.FromSeconds(30))) {
+                if (!WriteAsync(ms).Result) {
                     Log.W(TAG, "Unable to get output!");
                     return null;
                 }
@@ -248,7 +242,6 @@ namespace Couchbase.Lite.Support
         protected virtual void Opened()
         {
             _totalBytesWritten = 0;
-            _mre = new ManualResetEventSlim();
             StartWriting();
         }
 
@@ -259,6 +252,10 @@ namespace Couchbase.Lite.Support
         /// <param name="length">The length of the input.</param>
         protected virtual void AddInput(object input, long length)
         {
+            if (_isDisposed) {
+                throw new ObjectDisposedException("MultiStreamWriter");
+            }
+
             _inputs.Add(input);
             Length += length;
         }
@@ -273,9 +270,8 @@ namespace Couchbase.Lite.Support
             if (gotInput) {
                 _currentInput.CopyToAsync(_output, _bufferSize).ContinueWith(t => StartWriting());
             } else {
-                _mre.Set();
-                _mre.Dispose();
-                _mre = null;
+                Close();
+                _semaphore.Release();
             }
         }
 
@@ -323,7 +319,21 @@ namespace Couchbase.Lite.Support
 
         public void Dispose()
         {
+            if (_isDisposed) {
+                return;
+            }
+
+            _isDisposed = true;
             Close();
+            _semaphore.Dispose();
+            _semaphore = null;
+
+            foreach (var i in _inputs) {
+                var input = i as Stream;
+                if (i != null) {
+                    input.Dispose();
+                }
+            }
         }
 
         #pragma warning restore 1591

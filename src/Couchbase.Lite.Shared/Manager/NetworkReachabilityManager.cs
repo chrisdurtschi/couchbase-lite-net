@@ -2,18 +2,14 @@ using System;
 using System.Net.NetworkInformation;
 using Couchbase.Lite.Util;
 using System.Threading;
-using System.Diagnostics;
 using System.Net;
-using System.Net.Sockets;
-using System.Linq;
-using System.Net.Http;
 using System.Text;
 
 #if __ANDROID__
 using Android.App;
 using Android.Net;
 using Android.Content;
-using Android.Webkit;
+using Uri = System.Uri;
 #endif
 
 #if NET_3_5

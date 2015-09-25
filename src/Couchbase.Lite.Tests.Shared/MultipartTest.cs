@@ -53,6 +53,7 @@ namespace Couchbase.Lite
                 Assert.AreEqual(expectedOutput.Length, mp.Length);
 
                 var output = mp.AllOutput();
+                Assert.IsNotNull(output);
                 Assert.AreEqual(expectedOutput, Encoding.UTF8.GetString(output.ToArray()));
                 mp.Close();
             }
@@ -171,10 +172,12 @@ namespace Couchbase.Lite
                 Log.D(TAG, "Buffer size = {0}", bufferSize);
                 var mp = CreateWriter(bufferSize);
                 var outputBytes = mp.AllOutput();
+                Assert.IsNotNull(outputBytes);
                 Assert.AreEqual(EXPECTED_OUTPUT, Encoding.UTF8.GetString(outputBytes.ToArray()));
 
                 // Run it a second time to make sure re-opening works:
                 outputBytes = mp.AllOutput();
+                Assert.IsNotNull(outputBytes);
                 Assert.AreEqual(EXPECTED_OUTPUT, Encoding.UTF8.GetString(outputBytes.ToArray()));
             }
         }
