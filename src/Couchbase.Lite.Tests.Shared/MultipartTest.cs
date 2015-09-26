@@ -69,7 +69,13 @@ namespace Couchbase.Lite
             });
             mp.AddGZippedData(data1);
             var output = mp.AllOutput();
-            Assert.AreEqual(GetType().GetResourceAsStream("MultipartStars.mime").ReadAllBytes(), output);
+
+            // Compression flags & OS type will differ depending on which platform this test is run on
+            // So we need to compare for "almost" equality.  In this particular output the compression
+            // flags are on byte 97 and the os type is in byte 98
+            var expectedOutput = GetType().GetResourceAsStream("MultipartStars.mime").ReadAllBytes();
+            Assert.AreEqual(expectedOutput.Take(96), output.Take(96));
+            Assert.AreEqual(expectedOutput.Skip(98), output.Skip(98));
         }
 
         [Test]
