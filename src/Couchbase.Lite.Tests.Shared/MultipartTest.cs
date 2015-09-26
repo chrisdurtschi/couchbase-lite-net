@@ -147,6 +147,7 @@ namespace Couchbase.Lite
 
             // Read data that's equivalent to the last one except the JSON is gzipped:
             mime = GetType().GetResourceAsStream("MultipartGZipped.mime").ReadAllBytes();
+            headers["Content-Type"] = "multipart/mixed; boundary=\"d7a34c160fd136b5baf17055012e611abcb45dd3fe39fb81831ffd5dc920\"";
             var unzippedDict = default(IDictionary<string, object>);
             Assert.DoesNotThrow(() => unzippedDict = MultipartDocumentReader.ReadToDatabase(mime, headers, database));
             AssertDictionariesAreEqual(dict, unzippedDict);
