@@ -35,7 +35,10 @@ namespace Couchbase.Lite
         #region Constants
 
         private static readonly JsonSerializerSettings settings = new JsonSerializerSettings { 
-            ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+            ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+            DateFormatHandling = DateFormatHandling.IsoDateFormat,
+            DateParseHandling = DateParseHandling.DateTimeOffset,
+            DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind
         };
 
         private const string TAG = "NewtonsoftJsonSerializer";
