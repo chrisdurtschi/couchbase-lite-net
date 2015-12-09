@@ -1,4 +1,4 @@
-﻿//
+//
 //  NewtonsoftJsonSerializer.cs
 //
 //  Author:
@@ -38,7 +38,10 @@ namespace Couchbase.Lite
         private static readonly string Tag = typeof(NewtonsoftJsonSerializer).Name;
 
         private static JsonSerializerSettings settings = new JsonSerializerSettings { 
-            ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+            ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+            DateFormatHandling = DateFormatHandling.IsoDateFormat,
+            DateParseHandling = DateParseHandling.DateTimeOffset,
+            DateTimeZoneHandling = DateTimeZoneHandling.RoundtripKind
         };
 
         private const string TAG = "NewtonsoftJsonSerializer";
